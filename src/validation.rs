@@ -93,7 +93,7 @@ pub fn request_for_tool(tool: &str, args: Value) -> Result<(Value, bool)> {
         .get("use_cache")
         .map(|v| v.as_bool().context("use_cache must be boolean"))
         .transpose()?
-        .unwrap_or(true);
+        .unwrap_or(false);
     ensure!(
         !args["evidence"]
             .as_array()

@@ -1,7 +1,7 @@
 [
   {
     "name": "evaluate",
-    "description": "Evaluate 1\u2013400 independent questions against shared text, JSON, or image evidence.\nQuestions are predicate, choice, or score with unique names and explicit instructions.\nReturns original typed answers, probabilities, refusals, and usage; no explanations.\nuse_cache=false forces a fresh API call. Local paths must be inside configured roots.\n",
+    "description": "Evaluate 1\u2013400 independent questions against shared text, JSON, or image evidence.\nQuestions are predicate, choice, or score with unique names and explicit instructions.\nReturns original typed answers, probabilities, refusals, and usage; no explanations.\nCaching is off by default; use_cache=true opts in to local result caching. Local paths must be inside configured roots.\n",
     "inputSchema": {
       "$defs": {
         "ChoiceOption": {
@@ -373,9 +373,10 @@
           "type": "array"
         },
         "use_cache": {
-          "default": true,
+          "default": false,
           "title": "Use Cache",
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Opt in to local result cache reads and writes. Defaults to false; omitted calls always use the API."
         }
       },
       "required": [
@@ -584,9 +585,10 @@
           "type": "string"
         },
         "use_cache": {
-          "default": true,
+          "default": false,
           "title": "Use Cache",
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Opt in to local result cache reads and writes. Defaults to false; omitted calls always use the API."
         }
       },
       "required": [
@@ -835,9 +837,10 @@
           "type": "string"
         },
         "use_cache": {
-          "default": true,
+          "default": false,
           "title": "Use Cache",
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Opt in to local result cache reads and writes. Defaults to false; omitted calls always use the API."
         }
       },
       "required": [
@@ -1080,9 +1083,10 @@
           "type": "string"
         },
         "use_cache": {
-          "default": true,
+          "default": false,
           "title": "Use Cache",
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Opt in to local result cache reads and writes. Defaults to false; omitted calls always use the API."
         }
       },
       "required": [

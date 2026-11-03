@@ -88,7 +88,8 @@ cat request.json | decisions evaluate
 JSON input uses the same arguments as the MCP tools. `--input -` also reads stdin.
 `--text` supplies plain text evidence. `--statement`, `--instructions`, `--name`,
 `--choices` (JSON array), and `--levels` (JSON array) can supply or override fields.
-Use `--no-cache` to bypass cache reads and writes. Success prints only result JSON
+Caching is off by default. Use `--cache` to opt in to cache reads and writes, or
+`--no-cache` to override `"use_cache": true` in JSON input. Success prints only result JSON
 to stdout; failures print a concise error to stderr and exit nonzero.
 
 | Command / MCP tool | Arguments | Answer |
@@ -132,14 +133,20 @@ store and cache as CLI commands. Restart the MCP process after config changes.
 
 ## Cache
 
-Results are stored under the OS cache directory in `decisions/results.sqlite3`.
+Result caching is **opt in per call**: pass `--cache` on the CLI or
+`"use_cache": true` in JSON input or MCP arguments. Without this, every call uses
+the API and neither reads nor writes the result cache. Existing entries are retained
+but ignored unless caching is requested.
+
+When enabled, results are stored under the OS cache directory in `decisions/results.sqlite3`.
 The hash includes the normalized request, model, endpoint and a credential digest.
 Changed local bytes, prompts, aliases, endpoints or credentials create distinct
 entries. Inputs, file paths and credentials are not stored; API answers/usage are.
 Remote HTTP(S) images bypass caching because their bytes can change.
 
-TTL defaults to 86400 seconds; 0 disables caching. `use_cache:false` works through
-JSON input and MCP. Failures are not cached. Hits return `api_called:false`,
+TTL defaults to 86400 seconds when caching is requested; 0 disables caching even
+for opted-in calls. `use_cache:false` explicitly bypasses caching through JSON input
+and MCP. Failures are not cached. Hits return `api_called:false`,
 `usage:null`, original usage under `cached_usage`, and `cache.hit:true`.
 The Rust cache intentionally does not reuse the old Python cache namespace.
 

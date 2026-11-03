@@ -77,6 +77,10 @@ struct Input {
     levels: Option<String>,
     #[arg(long)]
     name: Option<String>,
+    /// Opt in to local result cache reads and writes.
+    #[arg(long, conflicts_with = "no_cache")]
+    cache: bool,
+    /// Bypass caching, including use_cache:true in JSON input.
     #[arg(long)]
     no_cache: bool,
 }
@@ -126,6 +130,9 @@ fn arguments(input: Input) -> Result<Value> {
                     .map_err(|_| anyhow::anyhow!("{name} must be valid JSON"))?,
             );
         }
+    }
+    if input.cache {
+        object.insert("use_cache".into(), json!(true));
     }
     if input.no_cache {
         object.insert("use_cache".into(), json!(false));

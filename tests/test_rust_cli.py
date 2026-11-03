@@ -112,7 +112,26 @@ class RustCLI(unittest.TestCase):
             self.assertEqual(body["model"], "gateway-luna-alias")
             self.assertNotIn("use_cache", body)
 
+    def test_cache_is_opt_in_for_json_and_cli(self):
+        for _ in range(2):
+            result = self.result("check", self.check)
+            self.assertTrue(result["api_called"])
+            self.assertIsNone(result["cache"]["stored_at"])
+        self.assertEqual(len(self.server.calls), 2)
+        self.assertFalse((self.dir / "cache.sqlite3").exists())
+        for expected_hit in (False, True):
+            p = self.invoke("check", "--cache", data=self.check)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(json.loads(p.stdout)["cache"]["hit"], expected_hit)
+        self.assertEqual(len(self.server.calls), 3)
+        self.assertTrue(self.result("check", self.check)["api_called"])
+        p = self.invoke("check", "--no-cache", data=dict(self.check, use_cache=True))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertTrue(json.loads(p.stdout)["api_called"])
+        self.assertEqual(len(self.server.calls), 5)
+
     def test_cache_hits_bypass_and_identity_separation(self):
+        self.check["use_cache"] = True
         first = self.result("check", self.check)
         second = self.result("check", self.check)
         self.assertFalse(second["api_called"])
@@ -142,7 +161,7 @@ class RustCLI(unittest.TestCase):
         for mode in ["http_error", "invalid_json", "invalid_answer"]:
             with self.subTest(mode=mode):
                 self.server.mode = mode
-                p = self.invoke("check", data=self.check)
+                p = self.invoke("check", data=dict(self.check, use_cache=True))
                 self.assertNotEqual(p.returncode, 0)
                 self.assertNotIn("sensitive-upstream-body", p.stdout + p.stderr)
                 self.assertNotIn("fake-local-test-key", p.stdout + p.stderr)
@@ -158,6 +177,7 @@ class RustCLI(unittest.TestCase):
         self.assertFalse(self.server.calls)
 
     def test_refusals_preserved_and_cached(self):
+        self.check["use_cache"] = True
         self.server.mode = "refusal"
         first = self.result("check", self.check)
         second = self.result("check", self.check)
@@ -201,6 +221,26 @@ class RustCLI(unittest.TestCase):
         self.assertEqual(answer["structuredContent"]["answers"][0]["probability"], 0.75)
         self.assertEqual(json.loads(answer["content"][0]["text"]), answer["structuredContent"])
         self.assertEqual(len(self.server.calls), 1)
+
+    def test_mcp_cache_is_opt_in(self):
+        messages = [
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        ]
+        for i, args in enumerate([self.check, self.check,
+                                  dict(self.check, use_cache=True), dict(self.check, use_cache=True)], 3):
+            messages.append({"jsonrpc": "2.0", "id": i, "method": "tools/call",
+                             "params": {"name": "check", "arguments": args}})
+        p = subprocess.run([str(BINARY), "mcp"], input="\n".join(map(json.dumps, messages)) + "\n",
+                           text=True, capture_output=True, env=self.env, timeout=20)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        outputs = [json.loads(line) for line in p.stdout.splitlines()]
+        for tool in outputs[1]["result"]["tools"]:
+            self.assertIs(tool["inputSchema"]["properties"]["use_cache"]["default"], False)
+        results = [o["result"]["structuredContent"] for o in outputs[2:]]
+        self.assertEqual([r["api_called"] for r in results], [True, True, True, False])
+        self.assertTrue(all(r["cache"]["stored_at"] is None for r in results[:2]))
+        self.assertEqual(len(self.server.calls), 3)
 
     def test_mcp_discovery_does_not_require_credentials(self):
         env = dict(self.env)
