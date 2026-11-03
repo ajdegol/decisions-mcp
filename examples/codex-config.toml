@@ -1,0 +1,8 @@
+# Merge this table into ~/.codex/config.toml.
+# Supply OPENAI_API_KEY in Codex's environment; never paste secrets into this file.
+[mcp_servers.decisions]
+command = "uv"
+args = ["run", "--frozen", "--directory", "/absolute/path/to/decisions-mcp", "decisions-mcp"]
+env_vars = ["OPENAI_API_KEY", "API_KEY", "DECISIONS_ENV_FILE", "DECISIONS_ALLOWED_ROOTS", "DECISIONS_CACHE_PATH", "DECISIONS_CACHE_TTL_SECONDS"]
+startup_timeout_sec = 30
+tool_timeout_sec = 90

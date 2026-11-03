@@ -1,0 +1,23 @@
+{
+  "evidence": [
+    {
+      "type": "image_path",
+      "path": "/absolute/path/to/screenshot.png"
+    }
+  ],
+  "instructions": "Rate the visible severity of the rendering problem.",
+  "levels": [
+    {
+      "label": "none",
+      "description": "No visible rendering problem."
+    },
+    {
+      "label": "minor",
+      "description": "Cosmetic issue; content remains readable."
+    },
+    {
+      "label": "major",
+      "description": "Important content is unreadable or obscured."
+    }
+  ]
+}

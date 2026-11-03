@@ -1,0 +1,26 @@
+{
+  "evidence": [
+    {
+      "type": "json",
+      "data": {
+        "subject": "Double charge",
+        "amount": 49
+      }
+    }
+  ],
+  "instructions": "Which team should handle this ticket?",
+  "choices": [
+    {
+      "value": "billing",
+      "description": "Charges, payments, and refunds."
+    },
+    {
+      "value": "technical",
+      "description": "Problems operating the product."
+    },
+    {
+      "value": "other",
+      "description": "Anything else."
+    }
+  ]
+}

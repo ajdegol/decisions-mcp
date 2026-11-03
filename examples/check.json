@@ -1,0 +1,9 @@
+{
+  "evidence": [
+    {
+      "type": "text",
+      "text": "The parcel arrived with a cracked screen."
+    }
+  ],
+  "statement": "Does the message describe physical damage?"
+}
