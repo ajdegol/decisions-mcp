@@ -1,117 +1,163 @@
-# Decisions MCP
+# Decisions
 
-General-purpose local MCP tools backed by OpenAI's Decisions API. This standalone
-package has no YouTube dependencies, transcript-fetching logic, or application rubrics.
+A Rust CLI and stdio MCP server sharing one Decisions client. Text, structured JSON,
+image URLs and local image/text files work through either interface. This repository
+has no YouTube dependencies or application-specific scoring prompts.
 
-## Tools
+## Install
 
-| Tool | Input | Result |
-|---|---|---|
-| `check` | Evidence + statement | Estimated probability a condition is true |
-| `classify` | Evidence + instructions + fixed choices | Selected category and probabilities |
-| `score` | Evidence + instructions + ordered levels | Fractional score over zero-based indices |
-| `evaluate` | Evidence + up to 400 typed questions | Multiple answers over shared evidence |
-
-All tools use `gpt-6-luna`, preserve API refusals, and return structured results.
-No generated explanations. Probabilities are model estimates; validate them on your
-own labelled examples before interpreting them as calibrated confidence.
-
-## Install and run
-
-Requires Python 3.11+ and uv.
+With Rust 1.90 or later, from this checkout:
 
 ```sh
-uv sync --frozen
-uv run --frozen decisions-mcp
+cargo install --path . --locked
 ```
 
-The server speaks MCP over stdio. It starts and lists tools without an API key.
-Actual API calls require `OPENAI_API_KEY` (or `API_KEY`) from your API organization.
-A local `.env` is supported; set `DECISIONS_ENV_FILE` to use an explicit file.
-Process environment values take precedence over file values. A Codex/ChatGPT
-sign-in token cannot be substituted. Configure the key in the environment that
-launches Codex; do not store it in this repository.
+This installs the standalone `decisions` binary in Cargo's bin directory (usually
+`~/.cargo/bin`). Python and a running MCP server are not required for CLI commands.
+From another machine with access to this private repository:
 
-Merge [examples/codex-config.toml](examples/codex-config.toml) into
-`~/.codex/config.toml`. Adjust the command/path for your computer.
-Restart the MCP server or Codex after changing the configuration.
+```sh
+cargo install --git ssh://git@github.com/ajdegol/decisions-mcp.git --locked
+```
 
-## Evidence
+## Credentials and configuration
 
-Each tool accepts an `evidence` array mixing these objects:
+```sh
+decisions auth login
+decisions config show
+```
+
+Login reads a hidden prompt and saves the key in the local OS credential store:
+macOS Keychain, Windows Credential Manager, or Linux Secret Service with the native
+keyring. Linux builds require `pkg-config` and D-Bus development headers (Ubuntu:
+`libdbus-1-dev`). A desktop Secret Service is needed for persistent Linux credentials;
+headless machines can use an environment variable. `decisions auth login --stdin`
+accepts a key from a secret manager or pipe. Never put a key in a command argument.
+`decisions auth logout` removes the stored credential for the selected endpoint.
+Each user/machine logs in separately. Copy only the secret-free config between machines.
+
+Configuration lives at `$XDG_CONFIG_HOME/decisions/config.toml` or
+`~/.config/decisions/config.toml`; `DECISIONS_CONFIG` overrides the full path.
+A missing file defaults to OpenAI (`https://api.openai.com/v1`, `gpt-6-luna`).
+
+For LiteLLM:
+
+```sh
+decisions config set base_url https://gateway.example.com/v1
+decisions config set model your-luna-alias
+decisions auth login
+```
+
+Use your LiteLLM key at that prompt. The proxy holds the upstream OpenAI credential.
+LiteLLM needs native Decisions support (introduced in v1.104.2), or an
+administrator-configured compatible route. The client appends `/decisions` to
+`base_url`; include any API prefix such as `/v1` in the configured URL.
+HTTPS is required except for loopback development servers. Redirects are disabled.
+Credentials are associated with the entire normalized base URL. Switching endpoints
+does not reuse the old stored key. A model alias change on the same gateway uses
+the same endpoint credential.
+
+Example config (all fields optional):
+
+```toml
+base_url = "https://gateway.example.com/v1"
+model = "your-luna-alias"
+roots = ["/absolute/path/to/evidence"]
+cache_ttl = 86400
+# cache_path = "/absolute/path/to/results.sqlite3"
+```
+
+Environment overrides: `DECISIONS_BASE_URL`, `DECISIONS_MODEL`,
+`DECISIONS_ALLOWED_ROOTS` (OS path-separated list), `DECISIONS_CACHE_PATH`, and
+`DECISIONS_CACHE_TTL_SECONDS`. Explicit `DECISIONS_API_KEY` or legacy `API_KEY`
+override the selected endpoint's stored credential. `OPENAI_API_KEY` is accepted
+only for the default OpenAI endpoint, so it cannot silently follow a gateway switch.
+No `.env` files are automatically loaded by the Rust binary. Environment credentials
+are useful for CI; use the OS store for interactive machines.
+
+## CLI
+
+```sh
+decisions check --text 'The screen arrived cracked.' --statement 'Is there physical damage?'
+decisions check --input examples/check.json
+decisions classify --input examples/classify.json
+decisions score --input my-score-request.json
+cat request.json | decisions evaluate
+```
+
+JSON input uses the same arguments as the MCP tools. `--input -` also reads stdin.
+`--text` supplies plain text evidence. `--statement`, `--instructions`, `--name`,
+`--choices` (JSON array), and `--levels` (JSON array) can supply or override fields.
+Use `--no-cache` to bypass cache reads and writes. Success prints only result JSON
+to stdout; failures print a concise error to stderr and exit nonzero.
+
+| Command / MCP tool | Arguments | Answer |
+|---|---|---|
+| `check` | evidence, statement | Estimated probability (0–1) |
+| `classify` | evidence, instructions, 2–255 choices | Fixed category with probabilities |
+| `score` | evidence, instructions, 2–10 ordered levels | Fractional score over zero-based indices |
+| `evaluate` | evidence, 1–400 typed questions | Multiple answers over shared evidence |
+
+Optional `name` defaults to `result` for single-question tools. `evaluate` requires
+unique names. Choices have distinct string/boolean `value` and optional `description`.
+Levels have `label` and optional `description`. Refusals are preserved; no generated
+explanations. Probabilities are model estimates.
+
+Evidence objects:
 
 ```json
 [
-  {"type": "text", "text": "Material to evaluate"},
-  {"type": "json", "data": {"field": "value"}},
-  {"type": "image_url", "url": "https://example.com/photo.png"},
-  {"type": "image_path", "path": "/absolute/path/photo.png"},
-  {"type": "text_path", "path": "/absolute/path/document.txt"}
+  {"type":"text","text":"Material to evaluate"},
+  {"type":"json","data":{"field":"value"}},
+  {"type":"image_url","url":"https://example.com/photo.png"},
+  {"type":"image_path","path":"/absolute/path/photo.png"},
+  {"type":"text_path","path":"/absolute/path/document.txt"}
 ]
 ```
 
-Image evidence supports `detail`: `auto` (default), `low`, `high`, or `original`.
-Local PNG/JPEG/GIF/WebP images are encoded by the server, avoiding base64 tool
-arguments. `image_url` also accepts validated base64 image data URLs.
-JSON evidence is an object or an array of objects, limited to 256 KiB, 32 container
-levels, and 10,000 values. The wrapper limits local files to 20 MiB and total API
-request JSON to 32 MiB. Text files must be UTF-8. Audio/video/PDF need preprocessing.
+Image `detail` defaults to `auto`; also accepts `low`, `high`, `original`. Validated
+base64 PNG/JPEG/GIF/WebP data URLs work too. Local files are limited to 20 MiB,
+UTF-8 for text, PNG/JPEG/GIF/WebP for images. Resolved symlink targets must be inside
+allowed roots (default: current working directory). JSON evidence is an object or
+array of objects, at most 256 KiB, 32 container levels and 10,000 values. Requests
+and responses are limited to 32 MiB. Audio/video/PDF need preprocessing.
 
-Local file access defaults to the server's working directory. Configure
-`DECISIONS_ALLOWED_ROOTS` as an OS path-separated list of directories to allow other
-locations. Resolved symlink targets must remain inside those directories.
-This controls local evidence files; HTTP image URLs are fetched by the API.
+## Codex / MCP
 
-## Questions
+Merge [examples/codex-config.toml](examples/codex-config.toml) into your Codex config,
+using the absolute installed binary path. The command is `decisions mcp`. Codex
+starts and stops this process as needed. CLI commands do not start MCP.
+Discovery works without credentials; tool calls use the same config, credential
+store and cache as CLI commands. Restart the MCP process after config changes.
 
-`check` accepts a `statement`. `classify` accepts `instructions` and 2–255
-`choices`, each with a distinct string/boolean `value` and optional `description`.
-`score` accepts `instructions` and 2–10 `levels`, each with `label` and optional
-`description`. Levels are ordered, not custom numeric scores.
+## Cache
 
-`evaluate` accepts a `questions` array:
-```json
-[
-  {"type": "predicate", "name": "damaged", "instructions": "Is the item damaged?"},
-  {"type": "choice", "name": "route", "instructions": "Which team?",
-   "choices": [{"value": "support"}, {"value": "billing"}]},
-  {"type": "score", "name": "severity", "instructions": "How severe?",
-   "levels": [{"label": "minor"}, {"label": "major"}]}
-]
-```
+Results are stored under the OS cache directory in `decisions/results.sqlite3`.
+The hash includes the normalized request, model, endpoint and a credential digest.
+Changed local bytes, prompts, aliases, endpoints or credentials create distinct
+entries. Inputs, file paths and credentials are not stored; API answers/usage are.
+Remote HTTP(S) images bypass caching because their bytes can change.
 
-Question names must be unique. Instructions are text in this first version;
-all images belong in shared evidence. Batch only independent questions.
-[Example tool arguments](examples/) use generic tasks and need no YouTube data.
-
-## Result cache
-
-A separate SQLite cache hashes the exact normalized API request, including model,
-question wording, choices/rubric, and evidence content. Local files are read before
-hashing, so changed bytes invalidate results. Inputs, paths, and API keys are not
-persisted; API outputs and usage metadata are cached.
-
-- Default: `~/.cache/decisions-mcp/results.sqlite3`.
-- `DECISIONS_CACHE_PATH` overrides the location.
-- `DECISIONS_CACHE_TTL_SECONDS` defaults to 86400; 0 disables caching.
-- Every tool accepts `use_cache=false` to bypass both cache reads and writes.
-- HTTP(S) image URLs bypass the cache because their content can change.
-- API failures are never cached; valid refusal answers are preserved and cached.
-- On a cache hit, `api_called=false`, `usage=null`, and original usage moves to
-  `cached_usage`. Cache metadata includes the key and original storage time.
+TTL defaults to 86400 seconds; 0 disables caching. `use_cache:false` works through
+JSON input and MCP. Failures are not cached. Hits return `api_called:false`,
+`usage:null`, original usage under `cached_usage`, and `cache.hit:true`.
+The Rust cache intentionally does not reuse the old Python cache namespace.
 
 ## Development
 
 ```sh
-uv sync --frozen
-uv run pytest
-uv run ruff check .
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+cargo build --locked
+python3 tests/test_rust_cli.py
 ```
 
-Tests use fake HTTP responses and a real stdio handshake, with no paid API calls.
+Tests use local fake HTTP endpoints; no paid API calls or real credentials.
+The previous Python implementation remains for compatibility with existing consumers;
+see [LEGACY_PYTHON.md](LEGACY_PYTHON.md). Its hardcoded endpoint and dotenv behavior
+are separate from the Rust CLI. New development targets Rust.
 
-References:
-- [Decisions API guide](https://developers.openai.com/api/docs/guides/decisions)
-- [Create decision schema](https://developers.openai.com/api/reference/resources/decisions/methods/create)
-- [Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp)
-- [Supported MCP Python SDK v1](https://github.com/modelcontextprotocol/python-sdk/tree/v1.x)
+References: [Decisions API](https://developers.openai.com/api/docs/guides/decisions),
+[LiteLLM Decisions](https://docs.litellm.ai/docs/decisions),
+[LiteLLM v1.104.2](https://docs.litellm.ai/release_notes/v1.104.2/v1-104-2).

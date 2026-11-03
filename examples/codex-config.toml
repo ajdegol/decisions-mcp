@@ -1,8 +1,12 @@
-# Merge this table into ~/.codex/config.toml.
-# Supply OPENAI_API_KEY in Codex's environment; never paste secrets into this file.
+# Merge into ~/.codex/config.toml; replace command with your absolute installed path.
+# Run decisions auth login first. No secrets belong in this file.
 [mcp_servers.decisions]
-command = "uv"
-args = ["run", "--frozen", "--directory", "/absolute/path/to/decisions-mcp", "decisions-mcp"]
-env_vars = ["OPENAI_API_KEY", "API_KEY", "DECISIONS_ENV_FILE", "DECISIONS_ALLOWED_ROOTS", "DECISIONS_CACHE_PATH", "DECISIONS_CACHE_TTL_SECONDS"]
+command = "/absolute/path/to/.cargo/bin/decisions"
+args = ["mcp"]
+env_vars = ["DECISIONS_CONFIG", "DECISIONS_BASE_URL", "DECISIONS_MODEL", "DECISIONS_API_KEY", "OPENAI_API_KEY", "API_KEY", "DECISIONS_ALLOWED_ROOTS", "DECISIONS_CACHE_PATH", "DECISIONS_CACHE_TTL_SECONDS"]
 startup_timeout_sec = 30
 tool_timeout_sec = 90
+
+# Optional: let MCP tools read evidence outside their working directory.
+# [mcp_servers.decisions.env]
+# DECISIONS_ALLOWED_ROOTS = "/absolute/path/to/evidence"

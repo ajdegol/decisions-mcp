@@ -1,0 +1,1103 @@
+[
+  {
+    "name": "evaluate",
+    "description": "Evaluate 1\u2013400 independent questions against shared text, JSON, or image evidence.\nQuestions are predicate, choice, or score with unique names and explicit instructions.\nReturns original typed answers, probabilities, refusals, and usage; no explanations.\nuse_cache=false forces a fresh API call. Local paths must be inside configured roots.\n",
+    "inputSchema": {
+      "$defs": {
+        "ChoiceOption": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "title": "Value"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "title": "ChoiceOption",
+          "type": "object"
+        },
+        "ChoiceQuestion": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 1048576,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "instructions": {
+              "maxLength": 1048576,
+              "minLength": 1,
+              "title": "Instructions",
+              "type": "string"
+            },
+            "type": {
+              "const": "choice",
+              "title": "Type",
+              "type": "string"
+            },
+            "choices": {
+              "items": {
+                "$ref": "#/$defs/ChoiceOption"
+              },
+              "maxItems": 255,
+              "minItems": 2,
+              "title": "Choices",
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "instructions",
+            "type",
+            "choices"
+          ],
+          "title": "ChoiceQuestion",
+          "type": "object"
+        },
+        "ImagePathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "ImagePathEvidence",
+          "type": "object"
+        },
+        "ImageUrlEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_url",
+              "title": "Type",
+              "type": "string"
+            },
+            "url": {
+              "pattern": "^(https?://|data:image/)",
+              "title": "Url",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ],
+          "title": "ImageUrlEvidence",
+          "type": "object"
+        },
+        "JsonEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "json",
+              "title": "Type",
+              "type": "string"
+            },
+            "data": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "items": {
+                    "additionalProperties": {
+                      "$ref": "#/$defs/JsonValue"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              ],
+              "title": "Data"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "title": "JsonEvidence",
+          "type": "object"
+        },
+        "JsonValue": {},
+        "PredicateQuestion": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 1048576,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "instructions": {
+              "maxLength": 1048576,
+              "minLength": 1,
+              "title": "Instructions",
+              "type": "string"
+            },
+            "type": {
+              "const": "predicate",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "instructions",
+            "type"
+          ],
+          "title": "PredicateQuestion",
+          "type": "object"
+        },
+        "ScoreLevel": {
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "title": "Label",
+              "type": "string"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            }
+          },
+          "required": [
+            "label"
+          ],
+          "title": "ScoreLevel",
+          "type": "object"
+        },
+        "ScoreQuestion": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 1048576,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "instructions": {
+              "maxLength": 1048576,
+              "minLength": 1,
+              "title": "Instructions",
+              "type": "string"
+            },
+            "type": {
+              "const": "score",
+              "title": "Type",
+              "type": "string"
+            },
+            "levels": {
+              "items": {
+                "$ref": "#/$defs/ScoreLevel"
+              },
+              "maxItems": 10,
+              "minItems": 2,
+              "title": "Levels",
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "instructions",
+            "type",
+            "levels"
+          ],
+          "title": "ScoreQuestion",
+          "type": "object"
+        },
+        "TextEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text",
+              "title": "Type",
+              "type": "string"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "title": "TextEvidence",
+          "type": "object"
+        },
+        "TextPathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "TextPathEvidence",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "evidence": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "image_path": "#/$defs/ImagePathEvidence",
+                "image_url": "#/$defs/ImageUrlEvidence",
+                "json": "#/$defs/JsonEvidence",
+                "text": "#/$defs/TextEvidence",
+                "text_path": "#/$defs/TextPathEvidence"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextEvidence"
+              },
+              {
+                "$ref": "#/$defs/JsonEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImageUrlEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImagePathEvidence"
+              },
+              {
+                "$ref": "#/$defs/TextPathEvidence"
+              }
+            ]
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "questions": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "choice": "#/$defs/ChoiceQuestion",
+                "predicate": "#/$defs/PredicateQuestion",
+                "score": "#/$defs/ScoreQuestion"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/PredicateQuestion"
+              },
+              {
+                "$ref": "#/$defs/ChoiceQuestion"
+              },
+              {
+                "$ref": "#/$defs/ScoreQuestion"
+              }
+            ]
+          },
+          "title": "Questions",
+          "type": "array"
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evidence",
+        "questions"
+      ],
+      "title": "evaluateArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "check",
+    "description": "Estimate the probability (0\u20131) that a statement is true of the supplied evidence.\nUse this for binary conditions, filtering, or likelihood estimates.\nA refusal is preserved as a refusal, never converted to zero.\n",
+    "inputSchema": {
+      "$defs": {
+        "ImagePathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "ImagePathEvidence",
+          "type": "object"
+        },
+        "ImageUrlEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_url",
+              "title": "Type",
+              "type": "string"
+            },
+            "url": {
+              "pattern": "^(https?://|data:image/)",
+              "title": "Url",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ],
+          "title": "ImageUrlEvidence",
+          "type": "object"
+        },
+        "JsonEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "json",
+              "title": "Type",
+              "type": "string"
+            },
+            "data": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "items": {
+                    "additionalProperties": {
+                      "$ref": "#/$defs/JsonValue"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              ],
+              "title": "Data"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "title": "JsonEvidence",
+          "type": "object"
+        },
+        "JsonValue": {},
+        "TextEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text",
+              "title": "Type",
+              "type": "string"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "title": "TextEvidence",
+          "type": "object"
+        },
+        "TextPathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "TextPathEvidence",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "evidence": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "image_path": "#/$defs/ImagePathEvidence",
+                "image_url": "#/$defs/ImageUrlEvidence",
+                "json": "#/$defs/JsonEvidence",
+                "text": "#/$defs/TextEvidence",
+                "text_path": "#/$defs/TextPathEvidence"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextEvidence"
+              },
+              {
+                "$ref": "#/$defs/JsonEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImageUrlEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImagePathEvidence"
+              },
+              {
+                "$ref": "#/$defs/TextPathEvidence"
+              }
+            ]
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "name": {
+          "default": "result",
+          "title": "Name",
+          "type": "string"
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evidence",
+        "statement"
+      ],
+      "title": "checkArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "classify",
+    "description": "Choose between 2\u2013255 distinct fixed categories.\nchoices contain value (string or boolean) and optional description.\nReturns the selected value plus API probabilities/confidence; no explanations.\n",
+    "inputSchema": {
+      "$defs": {
+        "ChoiceOption": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ],
+              "title": "Value"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "title": "ChoiceOption",
+          "type": "object"
+        },
+        "ImagePathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "ImagePathEvidence",
+          "type": "object"
+        },
+        "ImageUrlEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_url",
+              "title": "Type",
+              "type": "string"
+            },
+            "url": {
+              "pattern": "^(https?://|data:image/)",
+              "title": "Url",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ],
+          "title": "ImageUrlEvidence",
+          "type": "object"
+        },
+        "JsonEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "json",
+              "title": "Type",
+              "type": "string"
+            },
+            "data": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "items": {
+                    "additionalProperties": {
+                      "$ref": "#/$defs/JsonValue"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              ],
+              "title": "Data"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "title": "JsonEvidence",
+          "type": "object"
+        },
+        "JsonValue": {},
+        "TextEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text",
+              "title": "Type",
+              "type": "string"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "title": "TextEvidence",
+          "type": "object"
+        },
+        "TextPathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "TextPathEvidence",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "evidence": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "image_path": "#/$defs/ImagePathEvidence",
+                "image_url": "#/$defs/ImageUrlEvidence",
+                "json": "#/$defs/JsonEvidence",
+                "text": "#/$defs/TextEvidence",
+                "text_path": "#/$defs/TextPathEvidence"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextEvidence"
+              },
+              {
+                "$ref": "#/$defs/JsonEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImageUrlEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImagePathEvidence"
+              },
+              {
+                "$ref": "#/$defs/TextPathEvidence"
+              }
+            ]
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "instructions": {
+          "title": "Instructions",
+          "type": "string"
+        },
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "title": "Choices",
+          "type": "array"
+        },
+        "name": {
+          "default": "result",
+          "title": "Name",
+          "type": "string"
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evidence",
+        "instructions",
+        "choices"
+      ],
+      "title": "classifyArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "score",
+    "description": "Rate evidence against 2\u201310 levels ordered from lowest to highest.\nEach level has a label and optional description. The returned score is the\nprobability-weighted average of zero-based level indices and may be fractional.\nUse check instead when you want the likelihood of a binary condition.\n",
+    "inputSchema": {
+      "$defs": {
+        "ImagePathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "ImagePathEvidence",
+          "type": "object"
+        },
+        "ImageUrlEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "image_url",
+              "title": "Type",
+              "type": "string"
+            },
+            "url": {
+              "pattern": "^(https?://|data:image/)",
+              "title": "Url",
+              "type": "string"
+            },
+            "detail": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "low",
+                "high",
+                "original"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ],
+          "title": "ImageUrlEvidence",
+          "type": "object"
+        },
+        "JsonEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "json",
+              "title": "Type",
+              "type": "string"
+            },
+            "data": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "items": {
+                    "additionalProperties": {
+                      "$ref": "#/$defs/JsonValue"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              ],
+              "title": "Data"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "title": "JsonEvidence",
+          "type": "object"
+        },
+        "JsonValue": {},
+        "ScoreLevel": {
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "title": "Label",
+              "type": "string"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            }
+          },
+          "required": [
+            "label"
+          ],
+          "title": "ScoreLevel",
+          "type": "object"
+        },
+        "TextEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text",
+              "title": "Type",
+              "type": "string"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "title": "TextEvidence",
+          "type": "object"
+        },
+        "TextPathEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text_path",
+              "title": "Type",
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "title": "TextPathEvidence",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "evidence": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "image_path": "#/$defs/ImagePathEvidence",
+                "image_url": "#/$defs/ImageUrlEvidence",
+                "json": "#/$defs/JsonEvidence",
+                "text": "#/$defs/TextEvidence",
+                "text_path": "#/$defs/TextPathEvidence"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextEvidence"
+              },
+              {
+                "$ref": "#/$defs/JsonEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImageUrlEvidence"
+              },
+              {
+                "$ref": "#/$defs/ImagePathEvidence"
+              },
+              {
+                "$ref": "#/$defs/TextPathEvidence"
+              }
+            ]
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "instructions": {
+          "title": "Instructions",
+          "type": "string"
+        },
+        "levels": {
+          "items": {
+            "$ref": "#/$defs/ScoreLevel"
+          },
+          "title": "Levels",
+          "type": "array"
+        },
+        "name": {
+          "default": "result",
+          "title": "Name",
+          "type": "string"
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evidence",
+        "instructions",
+        "levels"
+      ],
+      "title": "scoreArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  }
+]

@@ -35,3 +35,6 @@ data/
 # OS and editor files
 .DS_Store
 .idea/
+
+# Rust build output
+/target/
